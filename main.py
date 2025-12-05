@@ -65,7 +65,7 @@ class Rules:
                         # Si el origen es nuevo, creamos la entrada
                         all_rules_dict[origen] = [movimiento]
 
-
+        all_rules_dict = dict(sorted(all_rules_dict.items()))
         print(all_rules_dict)
         return lines
 
