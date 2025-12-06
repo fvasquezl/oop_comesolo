@@ -1,3 +1,6 @@
+from operator import index
+from random import random, choice
+
 
 class Board:
     def __init__(self, rows:int):
@@ -24,71 +27,99 @@ class Rules:
         self.total_rows = rows
         self.triangle_depth = 3
         self.max_rows = self.total_rows - self.triangle_depth + 1
-        self.sub_triangles = self.find_sub_triangles()
+        self.rules = self.find_rules()
 
+    def generate_all_sub_triangle_rules(self)->list:
+        all_rules_list = []
 
-    def find_sub_triangles(self):
-        all_rules_dict = {}
-
+        # i: Renglón de inicio (P0)
         for i in range(1, self.max_rows + 1):
+            # 1. Calcular el valor del primer elemento en el renglón 'i' (T_{i-1})
             start_of_row = (i - 1) * i // 2
 
-
+            # j: Columna de inicio (P0)
             for j in range(i):
+                # 2. Definir los 6 puntos del sub-triángulo
                 P0 = start_of_row + j
                 P1 = P0 + i
                 P2 = P1 + 1
-                P3 = P1 + i+ 1
-                P4 = P2 + i+ 1
+                P3 = P1 + i + 1  # (P1 + i + 1)
+                P4 = P2 + i + 1  # (P2 + i + 1)
                 P5 = P4 + 1
 
+                # 3. Generar las 6 reglas de salto (3 de ida, 3 de vuelta)
                 lines = [
-                    # Vertical (P0 - P1 - P3)
-                    (P0, P1, P3), (P3, P1, P0),
-                    # Diagonal Derecha (P0 - P2 - P5)
-                    (P0, P2, P5), (P5, P2, P0),
-                    # Horizontal/Base (P3 - P4 - P5)
-                    (P3, P4, P5), (P5, P4, P3)
+                    (P0, P1, P3), (P3, P1, P0),  # Vertical
+                    (P0, P2, P5), (P5, P2, P0),  # Diagonal Derecha
+                    (P3, P4, P5), (P5, P4, P3)  # Horizontal/Base
                 ]
 
-                for origen, eliminar, destino in lines:
+                all_rules_list.extend(lines)
 
-                    # El movimiento es [Pieza a Eliminar, Destino]
-                    movimiento = [eliminar, destino]
+        return all_rules_list
 
-                    # Si el origen ya está en el diccionario, agregar el nuevo movimiento
-                    if origen in all_rules_dict:
-                        # Solo agregamos el movimiento si no es un duplicado
-                        if movimiento not in all_rules_dict[origen]:
-                            all_rules_dict[origen].append(movimiento)
-                    else:
-                        # Si el origen es nuevo, creamos la entrada
-                        all_rules_dict[origen] = [movimiento]
+    def find_rules(self)->dict:
+        all_rules_list = self.generate_all_sub_triangle_rules()
+        all_rules_dict = {}
 
-        all_rules_dict = dict(sorted(all_rules_dict.items()))
-        print(all_rules_dict)
-        return lines
+        # 1. Recolección y Eliminación de Duplicados
+        for origin, delete, destination in all_rules_list:
+            movement = [delete, destination]
 
+            if origin not in all_rules_dict:
+                all_rules_dict[origin] = []
 
+            if movement not in all_rules_dict[origin]:
+                all_rules_dict[origin].append(movement)
 
+        # 2. Ordenamiento Final
+        for origin in all_rules_dict:
+            all_rules_dict[origin].sort()
 
+        return dict(sorted(all_rules_dict.items()))
 
 
 class Comesolo:
     def __init__(self, rows:int):
         self.board=Board(rows)
-        self.rules = Rules(rows)
+        self.rules_processor = Rules(rows)
+        self.rules = self.rules_processor.rules
         self.create_board()
 
 
     def create_board(self):
-        print("\n--- Estado inicial del tablero ---")
+        while True:
+            try:
+                init_pos = int(input(f"Posicion a eliminar[1-{len(self.board.cells)}]:"))
+                self.board.cells[init_pos] = "0"
+                break
+            except ValueError:
+                print("Entrada invalida. Por favor ingrese numeros validos.")
+            except IndexError:
+                print(f"Solo valores entre 1 y {len(self.board.cells)} son permitidos.")
+            except Exception as e:  # Catch any other unexpected errors
+                print(f"Un error inesperado se ha generado: {e}")
+                print("Intente de nuevo.")
+
         self.board.print_cells()
+
+    def make_move(self):
+        cells = self.board.cells
+
+        #Buscamos todos los indices que estan vacios
+        empty_index = [i for i,value in enumerate(self.board.cells) if value=="0" ]
+
+        valid_moves = []
+        for origin, reglas in self.rules.items():
+            if
+            for delete, destination in reglas:
+
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     comesolo = Comesolo(5)
+    comesolo.make_move()
     #comesolo.make_move()
 
 #            0
