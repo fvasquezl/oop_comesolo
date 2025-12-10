@@ -103,24 +103,45 @@ class Comesolo:
 
         self.board.print_cells()
 
+    @property
     def make_move(self):
         cells = self.board.cells
 
         #Buscamos todos los indices que estan vacios
-        empty_index = [i for i,value in enumerate(self.board.cells) if value=="0" ]
+        empty_index = [i for i,value in enumerate(cells) if value=="0" ]
+
 
         valid_moves = []
-        for origin, reglas in self.rules.items():
-            if
-            for delete, destination in reglas:
+        for origin, rules in self.rules.items():
+            if cells[origin] == "1":
+                for delete, destination in rules:
+                    if cells[delete] == "1" and cells[destination] == "0":
+                            valid_moves.append((origin, delete, destination))
+
+        if not valid_moves:
+            print(f"No hay movimientos posibles.")
+            return False
+
+        origin, delete, destination = choice(valid_moves)
+
+        # Ejecutar el movimiento
+        cells[origin] = "0"  # El origen se vacía
+        cells[delete] = "0"  # La pieza eliminada se vacía
+        cells[destination] = "1"  # El destino se llena
+
+        print(f"Movimiento realizado: {origin} -> {destination} (Elimina {delete})")
+        self.board.print_cells()
+        return True
+
 
 
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     comesolo = Comesolo(5)
-    comesolo.make_move()
-    #comesolo.make_move()
+    comesolo.make_move
+    comesolo.make_move
+
 
 #            0
 #          1   2

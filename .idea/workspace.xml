@@ -75,6 +75,7 @@
       <workItem from="1764700245220" duration="7166000" />
       <workItem from="1764798568008" duration="7907000" />
       <workItem from="1764872453358" duration="12634000" />
+      <workItem from="1765322575326" duration="2272000" />
     </task>
     <servers />
   </component>
@@ -93,6 +94,6 @@
     </option>
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
-    <SUITE FILE_PATH="coverage/comesolo$main.coverage" NAME="main Coverage Results" MODIFIED="1764979234116" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/comesolo$main.coverage" NAME="main Coverage Results" MODIFIED="1765324540009" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
