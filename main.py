@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from random import choice, shuffle
 from collections import deque
 
@@ -79,31 +80,30 @@ class Rules:
         return dict(sorted(all_rules_dict.items()))
 
 
-class Comesolo:
-    def __init__(self, rows:int):
-        self.board = Board(rows)
-        self.rules_processor = Rules(rows)
-        self.rules = self.rules_processor.rules
-        self.create_board()
+# ========== SOLVERS ==========
 
+class Solver(ABC):
+    """Clase base abstracta para los algoritmos de solución."""
 
-    def create_board(self):
-        while True:
-            try:
-                init_pos = int(input(f"Posicion a eliminar[1-{len(self.board.cells)}]:"))
-                if not( 1 <= init_pos <= len(self.board.cells)):
-                    raise IndexError
-                self.board.cells[init_pos -1] = "0"
-                break
-            except ValueError:
-                print("Entrada invalida. Por favor ingrese numeros validos.")
-            except IndexError:
-                print(f"Solo valores entre 1 y {len(self.board.cells)} son permitidos.")
-            except Exception as e:  # Catch any other unexpected errors
-                print(f"Un error inesperado se ha generado: {e}")
-                print("Intente de nuevo.")
+    def __init__(self, board: Board, rules: dict):
+        self.board = board
+        self.rules = rules
 
-        self.board.print_cells()
+    @abstractmethod
+    def solve(self) -> list:
+        """Resuelve el puzzle. Retorna lista de movimientos o None."""
+        pass
+
+    def get_valid_moves(self) -> list:
+        """Retorna lista de movimientos válidos: [(origen, eliminar, destino), ...]"""
+        cells = self.board.cells
+        valid_moves = []
+        for origin, rules in self.rules.items():
+            if cells[origin] == "1":
+                for delete, destination in rules:
+                    if cells[delete] == "1" and cells[destination] == "0":
+                        valid_moves.append((origin, delete, destination))
+        return valid_moves
 
     def count_pegs(self) -> int:
         """Cuenta cuántas fichas quedan en el tablero."""
@@ -117,147 +117,145 @@ class Comesolo:
         cells[destination] = "1"
 
     def undo_move(self, origin: int, delete: int, destination: int):
-        """Deshace un movimiento (para backtracking)."""
+        """Deshace un movimiento."""
         cells = self.board.cells
-        cells[origin] = "1"       # Restaurar ficha en origen
-        cells[delete] = "1"       # Restaurar ficha eliminada
-        cells[destination] = "0"  # Vaciar destino
+        cells[origin] = "1"
+        cells[delete] = "1"
+        cells[destination] = "0"
+
+
+class BacktrackingSolver(Solver):
+    """Resuelve usando backtracking con orden aleatorio."""
 
     def solve(self) -> list:
-        """
-        Resuelve el juego usando backtracking.
-        Retorna la lista de movimientos si hay solución, None si no.
-        """
         solution = []
         if self._backtrack(solution):
             return solution
         return None
 
     def _backtrack(self, solution: list) -> bool:
-        """
-        Algoritmo recursivo de backtracking.
-        - solution: lista donde se guardan los movimientos exitosos
-        """
-        # Caso base: ¡Victoria! Solo queda 1 ficha
+        # Caso base: ¡Victoria!
         if self.count_pegs() == 1:
             return True
 
-        # Obtener todos los movimientos posibles
         valid_moves = self.get_valid_moves()
-
-        # Si no hay movimientos, es un callejón sin salida
         if not valid_moves:
             return False
 
-        # Aleatorizar el orden para obtener soluciones diferentes cada vez
+        # Aleatorizar para obtener soluciones diferentes
         shuffle(valid_moves)
 
-        # Probar cada movimiento
         for origin, delete, destination in valid_moves:
-            # 1. Ejecutar el movimiento
             self.execute_move(origin, delete, destination)
-
-            # 2. Guardar en la solución (optimista)
             solution.append((origin, delete, destination))
 
-            # 3. Intentar resolver recursivamente
             if self._backtrack(solution):
-                return True  # ¡Encontramos solución!
+                return True
 
-            # 4. No funcionó → BACKTRACK (deshacer)
-            solution.pop()  # Quitar de la solución
-            self.undo_move(origin, delete, destination)  # Restaurar tablero
+            # Backtrack
+            solution.pop()
+            self.undo_move(origin, delete, destination)
 
-        # Ningún movimiento llevó a solución
         return False
 
-    # ========== MÉTODOS BITMASK + BFS ==========
 
-    def board_to_bitmask(self) -> int:
-        """
-        Convierte el tablero actual a un entero (bitmask).
-        Cada bit representa una celda: 1=ficha, 0=vacío.
-        """
-        bitmask = 0
-        for i, cell in enumerate(self.board.cells):
-            if cell == "1":
-                bitmask |= (1 << i)  # Enciende el bit en posición i
-        return bitmask
+class BFSSolver(Solver):
+    """Resuelve usando BFS + Bitmask. Encuentra TODAS las soluciones."""
 
-    def bitmask_to_board(self, bitmask: int):
-        """Restaura el tablero desde un bitmask."""
-        for i in range(len(self.board.cells)):
-            if bitmask & (1 << i):  # Si el bit i está encendido
-                self.board.cells[i] = "1"
-            else:
-                self.board.cells[i] = "0"
-
-    def count_pegs_bitmask(self, bitmask: int) -> int:
-        """Cuenta fichas en un bitmask (cuenta bits encendidos)."""
-        return bin(bitmask).count('1')
-
-    def get_valid_moves_bitmask(self, bitmask: int) -> list:
-        """
-        Obtiene movimientos válidos para un estado bitmask.
-        Retorna: [(nuevo_bitmask, origen, eliminar, destino), ...]
-        """
-        valid_moves = []
-        for origin, rules in self.rules.items():
-            # Verificar si hay ficha en origen
-            if bitmask & (1 << origin):
-                for delete, destination in rules:
-                    # Verificar: ficha en delete Y vacío en destination
-                    has_delete = bitmask & (1 << delete)
-                    has_dest = bitmask & (1 << destination)
-
-                    if has_delete and not has_dest:
-                        # Calcular nuevo estado
-                        new_bitmask = bitmask
-                        new_bitmask &= ~(1 << origin)      # Quitar de origen
-                        new_bitmask &= ~(1 << delete)      # Quitar eliminada
-                        new_bitmask |= (1 << destination)  # Poner en destino
-                        valid_moves.append((new_bitmask, origin, delete, destination))
-
-        return valid_moves
-
-    def solve_bfs(self) -> list:
-        """
-        Resuelve usando BFS + Memoización.
-        Encuentra TODAS las rutas y retorna una aleatoria.
-        """
-        initial_state = self.board_to_bitmask()
-
-        # Cola: (estado_actual, camino_de_movimientos)
+    def solve(self) -> list:
+        initial_state = self._board_to_bitmask()
         queue = deque([(initial_state, [])])
-
-        # Estados visitados para no repetir
         visited = {initial_state}
-
-        # Guardar todas las soluciones encontradas
         all_solutions = []
 
         while queue:
             current_state, path = queue.popleft()
 
-            # ¿Victoria? Solo queda 1 ficha
-            if self.count_pegs_bitmask(current_state) == 1:
+            if self._count_pegs_bitmask(current_state) == 1:
                 all_solutions.append(path)
-                continue  # Seguir buscando más soluciones
+                continue
 
-            # Explorar todos los movimientos posibles
-            for new_state, origin, delete, dest in self.get_valid_moves_bitmask(current_state):
+            for new_state, origin, delete, dest in self._get_valid_moves_bitmask(current_state):
                 if new_state not in visited:
                     visited.add(new_state)
-                    new_path = path + [(origin, delete, dest)]
-                    queue.append((new_state, new_path))
+                    queue.append((new_state, path + [(origin, delete, dest)]))
 
         if all_solutions:
             print(f"Se encontraron {len(all_solutions)} soluciones distintas.")
-            return choice(all_solutions)  # Retorna una aleatoria
-
+            return choice(all_solutions)
         return None
 
-    # ========== FIN MÉTODOS BITMASK + BFS ==========
+    def _board_to_bitmask(self) -> int:
+        """Convierte el tablero a bitmask."""
+        bitmask = 0
+        for i, cell in enumerate(self.board.cells):
+            if cell == "1":
+                bitmask |= (1 << i)
+        return bitmask
+
+    def _count_pegs_bitmask(self, bitmask: int) -> int:
+        """Cuenta bits encendidos."""
+        return bin(bitmask).count('1')
+
+    def _get_valid_moves_bitmask(self, bitmask: int) -> list:
+        """Obtiene movimientos válidos para un estado bitmask."""
+        valid_moves = []
+        for origin, rules in self.rules.items():
+            if bitmask & (1 << origin):
+                for delete, destination in rules:
+                    has_delete = bitmask & (1 << delete)
+                    has_dest = bitmask & (1 << destination)
+
+                    if has_delete and not has_dest:
+                        new_bitmask = bitmask
+                        new_bitmask &= ~(1 << origin)
+                        new_bitmask &= ~(1 << delete)
+                        new_bitmask |= (1 << destination)
+                        valid_moves.append((new_bitmask, origin, delete, destination))
+        return valid_moves
+
+
+# ========== FIN SOLVERS ==========
+
+
+class Comesolo:
+    def __init__(self, rows: int):
+        self.board = Board(rows)
+        self.rules_processor = Rules(rows)
+        self.rules = self.rules_processor.rules
+        self.solver = None  # Se asigna después de elegir algoritmo
+        self.create_board()
+
+    def create_board(self):
+        while True:
+            try:
+                init_pos = int(input(f"Posicion a eliminar[1-{len(self.board.cells)}]:"))
+                if not (1 <= init_pos <= len(self.board.cells)):
+                    raise IndexError
+                self.board.cells[init_pos - 1] = "0"
+                break
+            except ValueError:
+                print("Entrada invalida. Por favor ingrese numeros validos.")
+            except IndexError:
+                print(f"Solo valores entre 1 y {len(self.board.cells)} son permitidos.")
+            except Exception as e:
+                print(f"Un error inesperado se ha generado: {e}")
+                print("Intente de nuevo.")
+
+        self.board.print_cells()
+
+    def set_solver(self, solver_type: str):
+        """Configura el solver a usar: 'backtracking' o 'bfs'"""
+        if solver_type == "bfs":
+            self.solver = BFSSolver(self.board, self.rules)
+        else:
+            self.solver = BacktrackingSolver(self.board, self.rules)
+
+    def solve(self) -> list:
+        """Resuelve usando el solver configurado."""
+        if self.solver is None:
+            self.set_solver("backtracking")
+        return self.solver.solve()
 
     def play_solution(self, solution: list):
         """Reproduce la solución paso a paso."""
@@ -267,38 +265,10 @@ class Comesolo:
         print()
 
         for i, (origin, delete, destination) in enumerate(solution, 1):
-            self.execute_move(origin, delete, destination)
+            self.solver.execute_move(origin, delete, destination)
             print(f"Paso {i}: {origin} → {destination} (elimina {delete})")
             self.board.print_cells()
             print()
-
-    def get_valid_moves(self) -> list:
-        """Retorna lista de movimientos válidos: [(origen, eliminar, destino), ...]"""
-        cells = self.board.cells
-        valid_moves = []
-        for origin, rules in self.rules.items():
-            if cells[origin] == "1":
-                for delete, destination in rules:
-                    if cells[delete] == "1" and cells[destination] == "0":
-                        valid_moves.append((origin, delete, destination))
-        return valid_moves
-
-    @property
-    def make_move(self):
-        valid_moves = self.get_valid_moves()
-
-        if not valid_moves:
-            print(f"No hay movimientos posibles.")
-            return False
-
-        origin, delete, destination = choice(valid_moves)
-
-        # Ejecutar el movimiento
-        self.execute_move(origin, delete, destination)
-
-        print(f"Movimiento realizado: {origin} -> {destination} (Elimina {delete})")
-        self.board.print_cells()
-        return True
 
 
 
@@ -316,12 +286,15 @@ if __name__ == '__main__':
     print("2. BFS + Memoización (encuentra TODAS y elige una)")
     opcion = input("Opción [1/2]: ").strip()
 
+    # Configurar solver según elección
     if opcion == "2":
+        comesolo.set_solver("bfs")
         print("\nBuscando TODAS las soluciones con BFS...")
-        solution = comesolo.solve_bfs()
     else:
+        comesolo.set_solver("backtracking")
         print("\nBuscando solución con Backtracking...")
-        solution = comesolo.solve()
+
+    solution = comesolo.solve()
 
     if solution:
         # Restaurar tablero al estado inicial
