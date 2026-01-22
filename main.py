@@ -1,5 +1,6 @@
-from operator import index
-from random import random, choice
+import time
+from collections import deque
+from random import choice
 
 
 class Board:
@@ -21,6 +22,12 @@ class Board:
             row_str = [f"\033[33m{value}\033[0m" if value == "0" else value for value in values]
             print("  " * (self.rows - i) + "   ".join(row_str))
             start_pos = end_pos
+
+    def apply_move(self, origin: int, delete: int, destination: int):
+        self.cells[origin] = "0"
+        self.cells[delete] = "0"
+        self.cells[destination] = "1"
+
 
 class Rules:
     def __init__(self, rows:int):
@@ -79,104 +86,116 @@ class Rules:
         return dict(sorted(all_rules_dict.items()))
 
 
+class BFSSolver:
+    """Resuelve usando BFS + Bitmask. Encuentra TODAS las soluciones."""
+
+    def __init__(self, board: Board, rules: dict):
+        self.board = board
+        self.rules = rules
+
+    def solve(self) -> list:
+        initial_state = self._board_to_bitmask()
+        queue = deque([(initial_state, [])])
+        visited = {initial_state}
+        all_solutions = []
+
+        while queue:
+            current_state, path = queue.popleft()
+
+            if self._count_pegs_bitmask(current_state) == 1:
+                all_solutions.append(path)
+                continue
+
+            for new_state, origin, delete, dest in self._get_valid_moves_bitmask(current_state):
+                if new_state not in visited:
+                    visited.add(new_state)
+                    queue.append((new_state, path + [(origin, delete, dest)]))
+
+        return all_solutions if all_solutions else None
+
+
+    def _board_to_bitmask(self) -> int:
+        """Convierte el tablero a bitmask."""
+        bitmask = 0
+        for i, cell in enumerate(self.board.cells):
+            if cell == "1":
+                bitmask |= (1 << i)
+        return bitmask
+
+    def _count_pegs_bitmask(self, bitmask: int) -> int:
+        """Cuenta bits encendidos."""
+        return bin(bitmask).count('1')
+
+    def _get_valid_moves_bitmask(self, bitmask: int) -> list:
+        """Obtiene movimientos válidos para un estado bitmask."""
+        valid_moves = []
+        for origin, rules in self.rules.items():
+            if bitmask & (1 << origin):
+                for delete, destination in rules:
+                    has_delete = bitmask & (1 << delete)
+                    has_dest = bitmask & (1 << destination)
+
+                    if has_delete and not has_dest:
+                        new_bitmask = bitmask
+                        new_bitmask &= ~(1 << origin)
+                        new_bitmask &= ~(1 << delete)
+                        new_bitmask |= (1 << destination)
+                        valid_moves.append((new_bitmask, origin, delete, destination))
+        return valid_moves
+
+
 class Comesolo:
     def __init__(self, rows:int):
-        self.board=Board(rows)
-        self.rules_processor = Rules(rows)
-        self.rules = self.rules_processor.rules
+        self.board = Board(rows)
+        self.rules = Rules(rows).rules
         self.create_board()
 
 
     def create_board(self):
+        max_pos = self.board.cells_length
         while True:
             try:
-                init_pos = int(input(f"Posicion a eliminar[1-{len(self.board.cells)}]:"))
-                self.board.cells[init_pos] = "0"
+                init_pos = int(input(f"Posicion a eliminar[1-{max_pos}]:"))
+                if not (1 <= init_pos <= max_pos):
+                    raise IndexError
+                self.board.cells[init_pos - 1] = "0"
                 break
             except ValueError:
                 print("Entrada invalida. Por favor ingrese numeros validos.")
             except IndexError:
-                print(f"Solo valores entre 1 y {len(self.board.cells)} son permitidos.")
+                print(f"Solo valores entre 1 y {max_pos} son permitidos.")
             except Exception as e:  # Catch any other unexpected errors
                 print(f"Un error inesperado se ha generado: {e}")
                 print("Intente de nuevo.")
 
         self.board.print_cells()
 
-    @property
-    def make_move(self):
-        cells = self.board.cells
+    def solve(self):
+        """Encuentra todas las soluciones óptimas y ejecuta una aleatoriamente"""
+        print("\nBuscando todas las soluciones óptimas...")
+        solver = BFSSolver(self.board, self.rules)
+        solutions = solver.solve()
 
-        #Buscamos todos los indices que estan vacios
-        empty_index = [i for i,value in enumerate(cells) if value=="0" ]
-
-
-        valid_moves = []
-        for origin, rules in self.rules.items():
-            if cells[origin] == "1":
-                for delete, destination in rules:
-                    if cells[delete] == "1" and cells[destination] == "0":
-                            valid_moves.append((origin, delete, destination))
-
-        if not valid_moves:
-            print(f"No hay movimientos posibles.")
+        if solutions is None:
+            print("No se encontró solución para esta configuración.")
             return False
 
-        origin, delete, destination = choice(valid_moves)
+        print(f"Se encontraron {len(solutions)} soluciones óptimas de {len(solutions[0])} movimientos.")
+        solution = choice(solutions)
+        print("Ejecutando una solución aleatoria...\n")
+        time.sleep(0.5)
 
-        # Ejecutar el movimiento
-        cells[origin] = "0"  # El origen se vacía
-        cells[delete] = "0"  # La pieza eliminada se vacía
-        cells[destination] = "1"  # El destino se llena
+        for origin, delete, destination in solution:
+            self.board.apply_move(origin, delete, destination)
+            print(f"Movimiento: {origin} -> {destination} (Elimina {delete})")
+            self.board.print_cells()
+            time.sleep(0.5)
 
-        print(f"Movimiento realizado: {origin} -> {destination} (Elimina {delete})")
-        self.board.print_cells()
+        pegs_left = self.board.cells.count("1")
+        print(f"\n¡Puzzle resuelto! Fichas restantes: {pegs_left}")
         return True
 
 
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     comesolo = Comesolo(5)
-    comesolo.make_move
-    comesolo.make_move
-
-
-#            0
-#          1   2
-#        3   4   5
-#      6   7   8   9
-#    10  11  12  13  14
-
-
-#
-#                         P0   P1     P2      P3         P4        P5
-# [                          P0+i    P1+1   P1+i+1     P2+i+1     P4+1
-# 0 [0, 1, 2, 3, 4, 5]  [ 0, 0+1=1, 1+1=2, 1+1+1= 3,  2+1+1= 4,  4+1= 5]
-# 1 [1, 3, 4, 6, 7, 8]  [ 1, 1+2=3, 3+1=4, 3+2+1= 6,  4+2+1= 7,  7+1= 8]
-# 2 [2, 4, 5, 7, 8, 9]  [ 2, 2+2=4, 4+1=5, 4+2+1= 7,  5+2+1= 8,  8+1= 9]
-# 3 [3, 6, 7,10,11,12]  [ 3, 3+3=6, 6+1=7, 6+3+1=10,  7+3+1=11, 11+1=12]
-# 4 [4, 7, 8,11,12,13]  [ 4, 4+3=7, 7+1=8, 7+3+1=11,  8+3+1=12, 12+1=13]
-# 5 [5, 8, 9,12,13,14]  [ 5, 5+3=8, 8+1=9, 8+3+1=12,  9+2+1=13, 13+1=14]
-# ]
-
-#         P0-0
-#       P1-1  P2-2      P3 = P1+i+1
-#     P3-3  P4-4  P5-5    P4 = P2+i+1
-#
-#   [0, 1, 3], [0, 2, 5], [3, 4, 5]]
-
-
-# [
-# 0 [0, 1, 2, 3, 4, 5]
-#  0  1   3
-# [P0,P1,P3]
-# [
-
-#
-#  0 {[1,3],[2,5]}
-#  3 {[1,0],[4,5]}
-#  5 {[2,0],[4,3]}
-#
-
+    comesolo.solve()
