@@ -1,14 +1,12 @@
 from itertools import groupby
-from operator import ge
-import time
-from collections import deque
-from random import choice
 
-# 0|0
-# 1|0 1
-# 2|0 1 2
-# 3|0 1 2 3
-# 4|0 1 2 3 4
+#     0 1 2 3 4
+#   + ---------
+# 0 | 0
+# 1 | 0 1
+# 2 | 0 1 2
+# 3 | 0 1 2 3
+# 4 | 0 1 2 3 4
 
 
 class TriangleGeometry:
@@ -67,9 +65,40 @@ class TriangleGeometry:
 class BoardN:
     def __init__(self, geometry: TriangleGeometry) -> None:
         self.geometry: TriangleGeometry = geometry
-        self.coords: dict[tuple[int, int], str] = {}
         self.pegs: int = (1 << self.geometry.total_cells) - 1
 
+    def has_peg(self, pos: int) -> bool:
+        """¿Hay ficha en el indice plano pos (0-based)?"""
+        return bool(self.pegs & (1 << pos))
+
+    def remove(self, pos: int):
+        """Apaga el bit pos"""
+        self.pegs = self.pegs & ~(1 << pos)
+
+    def apply_move(self, origen: int, medio: int, destino: int):
+        """Aplica salto:origen y medio quedan vacios, destino se llena"""
+        self.pegs &= ~(1 << origen)
+        self.pegs &= ~(1 << medio)
+        self.pegs |= 1 << destino
+
+    def count(self) -> int:
+        """Cuantas fichas quedan"""
+        return self.pegs.bit_count()
+
+    def print_board(self):
+        """Construye las coordenadas como variable LOCAL y las imprimes con groupby."""
+        celdas = (
+            (*self.geometry.index_to_coord(pos=pos), pos)
+            for pos in range(self.geometry.total_cells)
+        )
+        for fila, grupo in groupby(celdas, key=lambda c: c[0]):
+            fila_str = [
+                "1" if self.has_peg(pos) else "\033[33m0\033[0m"
+                for (_, _, pos) in grupo
+            ]
+            print("  " * (self.geometry.rows - fila) + "   ".join(fila_str))
+
+    """
     def fill_board(self):
         pos = 0
         for i in range(self.geometry.rows + 1):
@@ -107,6 +136,8 @@ class BoardN:
                 )
 
         self.print_board()
+
+    """
 
 
 class RulesN:
@@ -331,6 +362,4 @@ if __name__ == "__main__":
     rows = 4
     t = TriangleGeometry(rows=rows)
     b = BoardN(geometry=t)
-
-    r = RulesN(geometry=t)
-    print(r.generate_rules())
+    b.print_board()
