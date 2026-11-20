@@ -98,47 +98,6 @@ class BoardN:
             ]
             print("  " * (self.geometry.rows - fila) + "   ".join(fila_str))
 
-    """
-    def fill_board(self):
-        pos = 0
-        for i in range(self.geometry.rows + 1):
-            for j in range(i + 1):
-                bit_on = self.pegs & (1 << pos)
-                self.coords[(i, j)] = "1" if bit_on else "0"
-                pos += 1
-
-    def print_board(self):
-        self.fill_board()
-        for row, group in groupby(self.coords.items(), key=lambda item: item[0][0]):
-            row_str = [
-                f"\033[33m{value}\033[0m" if value == "0" else value
-                for (_, _), value in group
-            ]
-            print("  " * (self.geometry.rows - row) + "   ".join(row_str))
-
-    def play(self):
-        self.print_board()
-
-        while True:
-            try:
-                init_pos = int(
-                    input(f"Posicion a eliminar[1-{self.geometry.total_cells}]:")
-                )
-                if not (1 <= init_pos <= self.geometry.total_cells):
-                    raise IndexError
-                self.pegs = self.pegs & ~(1 << init_pos - 1)
-                break
-            except ValueError:
-                print("Entrada invalida. Por favor ingrese numeros validos.")
-            except IndexError:
-                print(
-                    f"Solo valores entre 1 y {self.geometry.total_cells} son permitidos."
-                )
-
-        self.print_board()
-
-    """
-
 
 class RulesN:
     def __init__(self, geometry: TriangleGeometry) -> None:
@@ -356,10 +315,37 @@ class Comesolo:
         return True
 
 """
+
+
+class Game:
+    def __init__(self, board: BoardN) -> None:
+        self.board: BoardN = board
+
+    def ask_initial_position(self) -> int:
+        """Pide al usuario una posicion 1-based, la  valida y la devuelve 0-based."""
+        max_pos = self.board.geometry.total_cells
+
+        while True:
+            try:
+                init_pos = int(input(f"Posicion a eliminar[1-{max_pos}]:"))
+                if not (1 <= init_pos <= max_pos):
+                    print(f"Solo valores entre 1 y {max_pos} son permitidos.")
+                    continue
+                return init_pos - 1
+            except ValueError:
+                print("Entrada invalida. Por favor ingrese numeros validos.")
+
+    def run(self) -> None:
+        """Orquesta la partida: muestra, pide, quita la ficha muestra."""
+        self.board.print_board()
+        pos = self.ask_initial_position()
+        self.board.remove(pos)
+        self.board.print_board()
+
+
 if __name__ == "__main__":
-    # comesolo = Comesolo(5)
-    # comesolo.solve()
     rows = 4
     t = TriangleGeometry(rows=rows)
     b = BoardN(geometry=t)
-    b.print_board()
+    game = Game(b)
+    game.run()
