@@ -102,17 +102,23 @@ class BoardN:
 class RulesN:
     def __init__(self, geometry: TriangleGeometry) -> None:
         self.geometry: TriangleGeometry = geometry
-        self.triangles: list[tuple[int, int, int]] = geometry.get_subtriangles()
-        self.all_rules: list[tuple[int, int, int]] = []
+        self.rules: dict[int, list[tuple[int, int]]] = self._build_rules()
 
-    def generate_rules(self):
-        for triangle in self.triangles:
+    def _build_rules(self) -> dict[int, list[tuple[int, int]]]:
+        """Converte cada linea de subtriangulo en 2 saltos, agrupados por origen"""
+
+        rules: dict[int, list[tuple[int, int]]] = {}
+        triangles: list[tuple[int, int, int]] = self.geometry.get_subtriangles()
+
+        for triangle in triangles:
             origen, medio, destino = triangle
-            self.all_rules.append(triangle)
-            self.all_rules.append((destino, medio, origen))
+            rules.setdefault(origen, []).append((medio, destino))
+            rules.setdefault(destino, []).append((medio, origen))
+        return rules
 
-        for i in self.all_rules:
-            print(f"{i}")
+    def moves_from(self, origen: int) -> list[tuple[int, int]]:
+        """Saltos (medio,destino) posibles desde el origen"""
+        return self.rules.get(origen, [])
 
 
 """
@@ -348,4 +354,5 @@ if __name__ == "__main__":
     t = TriangleGeometry(rows=rows)
     b = BoardN(geometry=t)
     game = Game(b)
+
     game.run()
