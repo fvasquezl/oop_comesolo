@@ -10,46 +10,57 @@ from itertools import groupby
 
 
 class TriangleGeometry:
-    def __init__(self, rows: int = 4, subtriange_len: int = 2) -> None:
+    # Un salto recorre 3 celdas en linea (origen, medio, destino),
+    # por eso cada sub-triangulo abarca 2 filas hacia abajo de su vertice.
+    JUMP_SPAN: int = 2
+
+    def __init__(self, rows: int = 4) -> None:
         self.rows: int = rows
         self.total_cells: int = (self.rows + 1) * (self.rows + 2) // 2
-        self.subtriange_len: int = subtriange_len
+        # Vertices posibles: todas las celdas de las filas 0..rows-JUMP_SPAN
+        last_vertex_row: int = self.rows - self.JUMP_SPAN
         self.subtriangles_no: int = (
-            (self.rows - self.subtriange_len + 1)
-            * (self.rows - self.subtriange_len + 2)
-            // 2
+            (last_vertex_row + 1) * (last_vertex_row + 2) // 2
+            if last_vertex_row >= 0
+            else 0
         )
 
     def get_subtriangles(self) -> list[tuple[int, int, int]]:
+        """Regresa las 3 lineas (origen, medio, destino) de cada sub-triangulo."""
         triangles: list[tuple[int, int, int]] = []
-        for pos in range(self.subtriangles_no):
-            f, c = self.index_to_coord(pos)
-            triangles.append(
-                (
-                    self.coord_to_index(f, c),
-                    self.coord_to_index(f + 1, c),
-                    self.coord_to_index(f + 2, c),
+        for f in range(self.rows - self.JUMP_SPAN + 1):
+            for c in range(f + 1):
+                # Lado izquierdo (vertical)
+                triangles.append(
+                    (
+                        self.coord_to_index(f, c),
+                        self.coord_to_index(f + 1, c),
+                        self.coord_to_index(f + 2, c),
+                    )
                 )
-            )
-            triangles.append(
-                (
-                    self.coord_to_index(f, c),
-                    self.coord_to_index(f + 1, c + 1),
-                    self.coord_to_index(f + 2, c + 2),
+                # Lado derecho (diagonal)
+                triangles.append(
+                    (
+                        self.coord_to_index(f, c),
+                        self.coord_to_index(f + 1, c + 1),
+                        self.coord_to_index(f + 2, c + 2),
+                    )
                 )
-            )
-            triangles.append(
-                (
-                    self.coord_to_index(f + 2, c),
-                    self.coord_to_index(f + 2, c + 1),
-                    self.coord_to_index(f + 2, c + 2),
+                # Base (horizontal)
+                triangles.append(
+                    (
+                        self.coord_to_index(f + 2, c),
+                        self.coord_to_index(f + 2, c + 1),
+                        self.coord_to_index(f + 2, c + 2),
+                    )
                 )
-            )
 
         return triangles
 
     def index_to_coord(self, pos: int) -> tuple[int, int]:
         """Dado un índice plano (0, 1, 2...), regresa (fila, columna)."""
+        if not 0 <= pos < self.total_cells:
+            raise IndexError(f"Indice {pos} fuera de rango [0, {self.total_cells - 1}]")
         row = 0
         while (row + 1) * (row + 2) // 2 <= pos:
             row += 1
@@ -58,7 +69,8 @@ class TriangleGeometry:
 
     def coord_to_index(self, i: int, j: int) -> int:
         """Dado (fila, columna), regresa el índice plano correspondiente."""
-
+        if not (0 <= i <= self.rows and 0 <= j <= i):
+            raise IndexError(f"Coordenada ({i}, {j}) fuera del triangulo")
         return j + i * (i + 1) // 2
 
 
@@ -105,7 +117,7 @@ class RulesN:
         self.rules: dict[int, list[tuple[int, int]]] = self._build_rules()
 
     def _build_rules(self) -> dict[int, list[tuple[int, int]]]:
-        """Converte cada linea de subtriangulo en 2 saltos, agrupados por origen"""
+        """Convierte cada linea de subtriangulo en 2 saltos, agrupados por origen"""
 
         rules: dict[int, list[tuple[int, int]]] = {}
         triangles: list[tuple[int, int, int]] = self.geometry.get_subtriangles()
@@ -122,6 +134,11 @@ class RulesN:
 
 
 """
+# NOTA: si se reactiva este bloque, faltan los imports:
+#   from collections import deque
+#   from random import choice
+#   import time
+
 class Board:
     def __init__(self, rows: int):
         self.rows: int = rows

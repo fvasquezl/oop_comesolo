@@ -14,9 +14,9 @@ This project also doubles as an OOP study exercise: `main.py` is mid-refactor, m
 python main.py
 ```
 
-`main.py` currently runs the **new, in-progress implementation** (see Architecture below): it builds a `TriangleGeometry`, a `BoardN`, and a `RulesN`, and prints the generated rules. The original game loop (`Comesolo(5).solve()`) is commented out at the bottom of the file and not currently wired to `__main__`. The run's output ends with a stray `None`, because `generate_rules()` prints internally and returns nothing.
+`main.py` currently runs the **new, in-progress implementation** (see Architecture below): it builds a `TriangleGeometry` and a `BoardN`, then `Game(board).run()` prints the full board, asks for a 1-indexed position to remove, and prints the board again. Nothing else happens yet (no moves, no solver). The original game loop (`Comesolo(5).solve()`) lives inside the legacy `"""..."""` block and is not wired to `__main__`.
 
-There are no dependencies (stdlib only), no test suite, and no linter config. To check changes, run `main.py` or import the classes from a `python -c` / REPL session.
+There are no runtime dependencies (stdlib only) and no test suite. A local venv at `.venv` (git-ignored, created with `python3 -m venv .venv`) holds `basedpyright` for type checking: `.venv/bin/basedpyright main.py` (currently 0 errors). To check behavior, run `main.py` or import the classes from a `python -c` / REPL session.
 
 ## Architecture
 
@@ -31,19 +31,20 @@ Three classes plus a solver:
 - **BFSSolver**: BFS + bitmask solver for a given `Board`/`Rules` pair. The goal test is exactly **1 peg left**, and it returns `None` if no such end state is reachable. Because of the global `visited` set, "all solutions" really means one shortest path per distinct single-peg end state, not every move sequence.
 - **Comesolo**: main game controller. Combines `Board`, `Rules`, and `BFSSolver` — asks for the initial position to remove, then `solve()` finds all optimal solutions and plays one at random.
 
-This block is intentionally kept, not dead code — the new implementation's formulas (e.g. sub-triangle jump generation) are being ported from it.
+This block is intentionally kept, not dead code — the new implementation's formulas (e.g. sub-triangle jump generation) are being ported from it. It relies on `deque`, `choice` and `time`, which are not imported at the top of the file (a note inside the block lists them) — add those imports if the block is ever re-enabled.
 
 ### New implementation (in progress)
 
-- **TriangleGeometry**: pure triangle geometry, independent of any board/game state. Given `rows` (and `subtriange_len`), computes `total_cells` and `subtriangles_no`, and converts between flat index and `(fila, columna)` coordinates via `index_to_coord`/`coord_to_index` (verified mutually inverse). `get_subtriangles()` returns the flat-index triples for each sub-triangle side (origin, jumped-over, destination) — verified to match the legacy `Rules` sub-triangle formula exactly.
-- **BoardN**: receives a `TriangleGeometry` instance through its constructor (dependency injection) rather than owning its own `rows`. Holds board state as a single `int` bitmask (`self.pegs`, one bit per cell) plus a `self.coords: dict[(i, j), "0"/"1"]` rebuilt from the bitmask on demand for display. `print_board()` groups `coords` by row with `itertools.groupby`. `play()` asks the player for a 1-indexed position and clears that bit.
-- **RulesN**: receives only a `TriangleGeometry` (deliberately *not* `BoardN`'s state) — rules depend solely on geometry, never on which cells currently hold a peg. `generate_rules()` is in progress: turning each sub-triangle side into a forward + reverse jump rule.
+- **TriangleGeometry**: pure triangle geometry, independent of any board/game state. Given `rows`, computes `total_cells` and `subtriangles_no`, and converts between flat index and `(fila, columna)` coordinates via `index_to_coord`/`coord_to_index` (mutually inverse; both raise `IndexError` for out-of-triangle input). The class constant `JUMP_SPAN = 2` (a jump covers 3 cells in a line) fixes the sub-triangle size; it is not a constructor parameter, because the offsets in `get_subtriangles()` are written for that size. `get_subtriangles()` loops over every sub-triangle vertex `(f, c)` in rows `0..rows-2` and returns the flat-index triples (origin, jumped-over, destination) for its 3 sides — left, right diagonal, base.
+- **BoardN**: receives a `TriangleGeometry` through its constructor (dependency injection) and owns only state + display. State is a single `int` bitmask (`self.pegs`, one bit per cell, all set initially). Methods: `has_peg(pos)`, `remove(pos)`, `apply_move(origen, medio, destino)` (no validity check — the caller must pass a legal jump), `count()` (`int.bit_count()`), and `print_board()` (groups cells by row with `itertools.groupby`, empty holes in yellow).
+- **RulesN**: receives only a `TriangleGeometry` (deliberately *not* `BoardN`'s state) — rules depend solely on geometry, never on which cells currently hold a peg. On construction it builds `self.rules: dict[int, list[tuple[int, int]]]`, i.e. `{origen: [(medio, destino), ...]}`, by turning each sub-triangle side into a forward + reverse jump. No sub-triangle side is repeated, so no deduplication is needed. Unlike legacy `Rules`, the lists are not sorted. `moves_from(origen)` returns the jumps for one cell. Verified against a brute-force enumeration of all straight-line jumps for 6-, 15-, 21- and 28-cell boards.
+- **Game**: user interaction. Receives a `BoardN`; `ask_initial_position()` asks for a 1-indexed position, validates it, and returns it 0-indexed; `run()` shows the board, removes that peg, and shows it again. It does not receive `RulesN` yet.
 
-**`rows` means something different in each implementation:** legacy `Board(5)`/`Rules(5)` take the number of rows (5 → 15 cells). `TriangleGeometry(rows=4)` takes the **0-indexed last row** (4 → rows 0..4 → 15 cells, `total_cells = (rows+1)(rows+2)/2`). In the same way, `subtriange_len=2` corresponds to the legacy `triangle_depth=3`. So `TriangleGeometry(rows=4)` is the same board as legacy `5`, and it yields 6 sub-triangles → 36 jump rules.
+**`rows` means something different in each implementation:** legacy `Board(5)`/`Rules(5)` take the number of rows (5 → 15 cells). `TriangleGeometry(rows=4)` takes the **0-indexed last row** (4 → rows 0..4 → 15 cells, `total_cells = (rows+1)(rows+2)/2`). In the same way, `JUMP_SPAN=2` corresponds to the legacy `triangle_depth=3`. So `TriangleGeometry(rows=4)` is the same board as legacy `5`, and it yields 6 sub-triangles → 36 jump rules.
 
 Design intent: rules/geometry stay decoupled from the board's runtime peg state (mirrors the legacy `Rules`/`Board` split), and shared calculations (like index↔coordinate conversion) live in one place (`TriangleGeometry`) instead of being duplicated across classes.
 
-Not yet done: `RulesN.generate_rules()` doesn't yet produce an origin-keyed dict like the legacy `Rules.rules`; there's no solver ported to the new bitmask representation; `BoardN.play()` only removes the first piece, with no move-execution loop yet.
+Not yet done: `Game` isn't given `RulesN`, and there's no move-execution loop or valid-move generator (legacy `BFSSolver._get_valid_moves_bitmask` is the template: combine `RulesN.moves_from` with `BoardN.has_peg`); no solver has been ported to the new bitmask representation.
 
 ## Board Indexing
 
